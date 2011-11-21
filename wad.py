@@ -132,7 +132,9 @@ class WadFile(object):
             raise IOError("Target directory does not exist")
         for ob in self._objects:
             obj = self._objects[ob]
-            dir, name = os.path.split(obj.name)
+            name = obj.name.replace('\\','/')
+            print name
+            dir, name = os.path.split(name)
             dir = os.path.join(dirname, dir)
             if not os.path.exists(dir):
                 os.makedirs(dir)
