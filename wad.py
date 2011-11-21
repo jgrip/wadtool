@@ -12,11 +12,13 @@
 #
 #You should have received a copy of the GNU General Public License
 #along with this program; if not, write to the Free Software
-#Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#MA  02110-1301, USA.
 
 import os
 import os.path
 import struct
+
 
 class WadObject(object):
     """Represents an object inside a WAD file"""
@@ -37,8 +39,7 @@ class WadObject(object):
         self._data = None
         self.is_loaded = None
 
-    @property
-    def data(self):
+    def get_data(self):
         # If data is already loaded, return it
         if self.is_loaded:
             return self._data
@@ -47,7 +48,7 @@ class WadObject(object):
             if '.wad' in self.srcname.lower() and self.size and self.offset:
                 f = None
                 try:
-                    f = open(self.srcname,'rb')
+                    f = open(self.srcname, 'rb')
                     f.seek(self.offset)
                     self._data = f.read(self.size)
                     self.is_loaded = True
@@ -59,7 +60,7 @@ class WadObject(object):
                 # Data is from a standalone file in the filesystem
                 f = None
                 try:
-                    f = open(self.srcname,'rb')
+                    f = open(self.srcname, 'rb')
                     self._data = f.read()
                     self.size = len(self._data)
                     self.is_loaded = True
@@ -68,12 +69,14 @@ class WadObject(object):
                     if f is not None:
                         f.close()
 
-    @data.setter
-    def data(self, data):
+    def set_data(self, data):
         self._data = data
         self.is_loaded = True
         self.size = len(self._data)
         self.offset = None
+
+    data = property(get_data, set_data)
+
 
 class WadFile(object):
     """Represents a WAD file"""
@@ -102,19 +105,19 @@ class WadFile(object):
 
         f = None
         try:
-            f = open(filename,'rb')
+            f = open(filename, 'rb')
             # Read and verify wad signature
             sig = f.read(4)
             if sig == "WWAD":
                 # Read the number of files that the wad contains
-                numfiles = struct.unpack("l",f.read(4))[0]
+                numfiles = struct.unpack("=L", f.read(4))[0]
                 # Then read the names and source names
                 reldirs = [''.join(_readcstring(f)) for x in range(numfiles)]
                 absdirs = [''.join(_readcstring(f)) for x in range(numfiles)]
                 # Then we unpack and read the file attributes
-                filedata = [struct.unpack('4l',f.read(16)) for x in range(numfiles)]
+                filedata = [struct.unpack('=4L', f.read(16)) for x in range(numfiles)]
                 for i in range(numfiles):
-                    self.add(WadObject(reldirs[i],filename,filedata[i][0],filedata[i][1],filedata[i][3]))
+                    self.add(WadObject(reldirs[i], filename, filedata[i][0], filedata[i][1], filedata[i][3]))
             else:
                 raise IOError("Not a WAD file")
         except IOError, msg:
@@ -130,10 +133,10 @@ class WadFile(object):
         for ob in self._objects:
             obj = self._objects[ob]
             dir, name = os.path.split(obj.name)
-            dir = os.path.join(dirname,dir)
+            dir = os.path.join(dirname, dir)
             if not os.path.exists(dir):
                 os.makedirs(dir)
-            f = open(os.path.join(dir,name),'wb')
+            f = open(os.path.join(dir, name), 'wb')
             f.write(obj.data)
             f.close()
             obj.unload()
@@ -143,23 +146,23 @@ class WadFile(object):
         f = open(wadname, 'wb')
         # Write header and number of files
         f.write('WWAD')
-        f.write(struct.pack('l',len(self._objects)))
+        f.write(struct.pack('=L', len(self._objects)))
         # Generate a sorted list of objects
-        objs = sorted(self._objects,key=str.lower)
+        objs = sorted(self._objects, key=str.lower)
         # Write file names
         for ob in objs:
             obj = self._objects[ob]
-            f.write(struct.pack('%ds' % (len(obj.name)+1),obj.name))
+            f.write(struct.pack('%ds' % (len(obj.name) + 1), obj.name))
         # Write file source names
         for ob in objs:
             obj = self._objects[ob]
-            f.write(struct.pack('%ds' % (len(obj.srcname)+1),obj.srcname.replace('/','\\')))
+            f.write(struct.pack('%ds' % (len(obj.srcname) + 1), obj.srcname.replace('/', '\\')))
         # Calculate file data offset starting point
         offs = f.tell() + (16 * len(self._objects))
         # Write file offset and size table
         for ob in objs:
             obj = self._objects[ob]
-            f.write(struct.pack('4l',obj.version, obj.size, obj.size, offs))
+            f.write(struct.pack('=4L', obj.version, obj.size, obj.size, offs))
             offs += obj.size
         # Write the actual file data
         for ob in objs:
@@ -168,6 +171,7 @@ class WadFile(object):
             # Unload file data from memory again, don't be a hog
             obj.unload()
         f.close()
+
 
 ##
 ## Utility functions
@@ -181,15 +185,18 @@ def load(filename):
         raise IOError(err)
     return wad
 
+
 def fromdirectory(dirname):
     """Create WadFile object from directory of files"""
     if not os.path.exists(dirname):
         raise IOError("Source directory does not exist")
-    os.chdir(dirname)
     wad = WadFile()
-    for root, dirs, files in os.walk(""):
-        for fil in [os.path.join(root,file) for file in files]:
-            size = os.path.getsize(os.path.join(dirname,fil))
-            obj = WadObject(fil, srcname=os.path.join(dirname,fil), version=1, size=size)
+    for root, dirs, files in os.walk(dirname):
+        # Walk the files
+        for obj_file in [os.path.join(root, filename) for filename in files]:
+            size = os.path.getsize(obj_file)
+            # Generate archive name
+            archive_file = os.path.relpath(obj_file, dirname)
+            obj = WadObject(archive_file, srcname=obj_file, version=1, size=size)
             wad.add(obj)
     return wad
