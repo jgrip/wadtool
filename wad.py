@@ -32,7 +32,7 @@ class WadObject(object):
         self.is_loaded = False
 
     def __repr__(self):
-        return "WadObject(%s)" % self.name
+        return "WadObject(%s, size=%d)" % (self.name,self.size)
 
     def unload(self):
         """Unload data from memory"""
@@ -45,7 +45,7 @@ class WadObject(object):
             return self._data
         else:
             # Right, are we reading the data out of a wad file?
-            if '.wad' in self.srcname.lower() and self.size and self.offset:
+            if '.wad' in self.srcname.lower() and self.offset:
                 f = None
                 try:
                     f = open(self.srcname, 'rb')
@@ -133,7 +133,6 @@ class WadFile(object):
         for ob in self._objects:
             obj = self._objects[ob]
             name = obj.name.replace('\\','/')
-            print name
             dir, name = os.path.split(name)
             dir = os.path.join(dirname, dir)
             if not os.path.exists(dir):
